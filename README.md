@@ -45,7 +45,7 @@ This is the posterior collapse problem that strong autoregressive decoders are k
 
 SSIM is not used to judge this model. A sample from p(x | z) is a new image that shares the content of the original, not a pixel-exact reconstruction, so its SSIM stays low even when the model works. The latent gap and bits per dimension are the right measures.
 
-Results for the fixed run are pending. It has not been trained yet; the code passes the CPU tests and a dry run on synthetic data.
+Results for the fixed run are pending. It has not been trained yet. The code passes the CPU tests and a dry run on synthetic data.
 
 ### Code fixes made while cleaning up
 
