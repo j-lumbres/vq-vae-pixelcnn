@@ -1,0 +1,12 @@
+# Weights live in a GitHub Release, not in git (11-49 MB each)
+checkpoints/
+*.pth
+
+# Original exploratory notebooks, kept locally only
+legacy/
+
+data/
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/
+.DS_Store
