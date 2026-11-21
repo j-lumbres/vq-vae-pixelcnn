@@ -56,7 +56,7 @@ Results for the fixed run are pending. It has not been trained yet. The code pas
 
 ## Running it
 
-Training needs a GPU. `colab.ipynb` clones the repo, pulls the Stage 1 checkpoint from Google Drive, runs the tests, then trains the PixelCNN decoder and the prior.
+Training needs a GPU. `colab.ipynb` clones the repo, downloads the Stage 1 checkpoint from the `v0.1-stage1` release, runs the tests, then trains the PixelCNN decoder and the prior. Outputs are copied to Google Drive.
 
 Locally, the tests run on CPU in about a second:
 
@@ -67,7 +67,7 @@ python -m pytest tests
 
 The tests check shapes, that old checkpoints load, and causality. The causality tests change one input position at a time and assert that no output for an earlier position changes, for both the RGB decoder (including the R, G, B order inside a pixel) and the code prior. A masking bug there would let the model see the value it is predicting, which makes the loss look great and the samples useless.
 
-Checkpoints are not stored in git. Put `vqvae_stage1.pth` in `checkpoints/` (download it from the Releases page).
+Checkpoints are not stored in git. The Stage 1 checkpoint `vqvae_stage1.pth` is attached to the `v0.1-stage1` release and goes in `checkpoints/`.
 
 ## Layout
 
@@ -79,3 +79,7 @@ train_prior.py               optional prior over codes
 colab.ipynb                  GPU runner
 tests/test_models.py         CPU smoke and causality tests
 ```
+
+## License
+
+Code in this repository is licensed under the [MIT License](LICENSE).
