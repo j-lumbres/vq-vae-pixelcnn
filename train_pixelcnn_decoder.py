@@ -16,6 +16,7 @@ stopped at epoch 3 with codebook perplexity ~5 and a latent gap of ~0.17 bits/di
      when the model works.
 
 Needs a GPU. Each epoch of 6 gated layers on 32x32x3 takes a few minutes on a T4.
+An interrupted run continues from RESUME_PATH. Delete it to start over.
 """
 
 import json
@@ -39,6 +40,7 @@ STAGE1_CHECKPOINT = 'checkpoints/vqvae_stage1.pth'
 SAVE_PATH = 'checkpoints/vqvae_pixelcnn_decoder.pth'
 HISTORY_PATH = 'results/pixelcnn_decoder_history.json'
 SAMPLES_PATH = 'results/pixelcnn_decoder_samples.png'
+RESUME_PATH = 'checkpoints/vqvae_pixelcnn_decoder_resume.pth'
 
 BATCH_SIZE = 128
 NUM_EPOCHS = 40
@@ -65,25 +67,48 @@ train_loader, test_loader = make_cifar10_loaders(DATA_DIR, BATCH_SIZE)
 model = VQ_VAE_PixelCNN(NUM_HIDDENS, NUM_EMBEDDINGS, EMBEDDING_DIM, COMMITMENT_COST, DECAY,
                         pixelcnn_hiddens=PIXELCNN_HIDDENS, pixelcnn_layers=PIXELCNN_LAYERS).to(device)
 
-# Warm start: copy encoder, projection, and codebook from the trained Stage 1 VQ-VAE
-stage1_model = VQ_VAE(NUM_HIDDENS, NUM_EMBEDDINGS, EMBEDDING_DIM, COMMITMENT_COST, DECAY)
-load_stage1_checkpoint(stage1_model, STAGE1_CHECKPOINT, device='cpu')
-model.encoder.load_state_dict(stage1_model.encoder.state_dict())
-model.pre_vq_conv.load_state_dict(stage1_model.pre_vq_conv.state_dict())
-model.quantizer.load_state_dict(stage1_model.quantizer.state_dict())
-del stage1_model
-
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS, eta_min=MIN_LEARNING_RATE)
+
+history = []
+start_epoch = 0
+
+if os.path.exists(RESUME_PATH):
+    resume_state = torch.load(RESUME_PATH, map_location=device, weights_only=True)
+    model.load_state_dict(resume_state['model'])
+    optimizer.load_state_dict(resume_state['optimizer'])
+    scheduler.load_state_dict(resume_state['scheduler'])
+    history = resume_state['history']
+    start_epoch = resume_state['epoch'] + 1
+    print(f'Resuming from {RESUME_PATH} at epoch {start_epoch}')
+
+elif os.path.exists(SAVE_PATH) and os.path.exists(HISTORY_PATH):
+    # Older runs saved weights only. Adam restarts with empty moment estimates,
+    # but the learning rate goes back to where it was on the cosine schedule.
+    model.load_state_dict(torch.load(SAVE_PATH, map_location=device, weights_only=True))
+    with open(HISTORY_PATH) as history_file:
+        history = json.load(history_file)
+    start_epoch = history[-1]['epoch'] + 1
+    for _ in range(start_epoch):
+        scheduler.step()
+    print(f'Resuming from weights-only {SAVE_PATH} at epoch {start_epoch}, fresh Adam state')
+
+else:
+    # Warm start: copy encoder, projection, and codebook from the trained Stage 1 VQ-VAE
+    stage1_model = VQ_VAE(NUM_HIDDENS, NUM_EMBEDDINGS, EMBEDDING_DIM, COMMITMENT_COST, DECAY)
+    load_stage1_checkpoint(stage1_model, STAGE1_CHECKPOINT, device='cpu')
+    model.encoder.load_state_dict(stage1_model.encoder.state_dict())
+    model.pre_vq_conv.load_state_dict(stage1_model.pre_vq_conv.state_dict())
+    model.quantizer.load_state_dict(stage1_model.quantizer.state_dict())
+    del stage1_model
 
 # One fixed test batch for the collapse probe, so epochs are comparable
 X_probe, _ = next(iter(test_loader))
 X_probe = X_probe.to(device)
 
-history = []
 start_time = time.time()
 
-for epoch in range(NUM_EPOCHS):
+for epoch in range(start_epoch, NUM_EPOCHS):
     model.train()
     encoder_frozen = epoch < FREEZE_EPOCHS
     model.set_encoder_frozen(encoder_frozen)
@@ -133,6 +158,17 @@ for epoch in range(NUM_EPOCHS):
     torch.save(model.state_dict(), SAVE_PATH)
     with open(HISTORY_PATH, 'w') as history_file:
         json.dump(history, history_file, indent=1)
+
+    resume_state = {
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'scheduler': scheduler.state_dict(),
+        'epoch': epoch,
+        'history': history,
+    }
+    # Write to a temp file first so a crash mid-save cannot corrupt the last good state
+    torch.save(resume_state, RESUME_PATH + '.tmp')
+    os.replace(RESUME_PATH + '.tmp', RESUME_PATH)
 
 print(f'Training done in {(time.time() - start_time) / 60:.1f} min')
 
