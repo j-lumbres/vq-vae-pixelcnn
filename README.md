@@ -45,7 +45,21 @@ This is the posterior collapse problem that strong autoregressive decoders are k
 
 SSIM is not used to judge this model. A sample from p(x | z) is a new image that shares the content of the original, not a pixel-exact reconstruction, so its SSIM stays low even when the model works. The latent gap and bits per dimension are the right measures.
 
-Results for the fixed run are pending. It has not been trained yet. The code passes the CPU tests and a dry run on synthetic data.
+### PixelCNN decoder: fixed run
+
+Trained for 40 epochs with batch size 128 and Adam, with the learning rate on a cosine schedule from 1e-3 to 1e-5. Epochs 0 to 19 ran on a Colab T4 and epochs 20 to 39 on a Kaggle T4. The second part resumed from the epoch 19 weights with a fresh Adam state, which is why train bits/dim jumps from 3.673 to 3.812 at epoch 20.
+
+| Epoch | Encoder | Test bits/dim | Bits/dim, z zeroed | Latent gap | Code perplexity |
+|---|---|---|---|---|---|
+| 9 | frozen | 4.042 | 4.962 | 0.92 | 439 |
+| 19 | trained | 3.717 | 5.107 | 1.39 | 448 |
+| 39 | trained | 3.550 | 5.665 | 2.12 | 462 |
+
+Test figures come from one fixed batch of 128 test images, the same batch every epoch. The latent gap grew after the encoder unfroze instead of shrinking, so the decoder uses z more as training goes on. The first run collapsed with a gap of about 0.17 bits and a perplexity of about 5.
+
+![Test images and two PixelCNN decoder samples per latent](assets/decoder_samples.png)
+
+Row 1 shows test images and rows 2 and 3 show two independent samples from p(x | z) for each one. Samples keep the layout and main colours of simple scenes such as the ship and the airplane. On cluttered scenes they keep the rough layout, but the colours drift.
 
 ### Code fixes made while cleaning up
 
