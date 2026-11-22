@@ -61,6 +61,18 @@ Test figures come from one fixed batch of 128 test images, the same batch every 
 
 Row 1 shows test images and rows 2 and 3 show two independent samples from p(x | z) for each one. Samples keep the layout and main colours of simple scenes such as the ship and the airplane. On cluttered scenes they keep the rough layout, but the colours drift.
 
+### PixelCNN prior over codes
+
+The class-conditional prior trains on the 8x8 code grids of the frozen Stage 1 model with cross-entropy, measured in bits per code. Guessing uniformly among 512 codes costs 9 bits. A first 60-epoch run reached its lowest test loss of 7.73 bits/code at epoch 5. After that train loss kept falling while test loss rose to 12.04, so the prior was memorizing the training grids. The Stage 1 codebook is used almost evenly (perplexity 460), so each image's code grid is close to unique and easy to memorize. The script now trains for 20 epochs and keeps the epoch with the lowest test loss.
+
+| Run | Best epoch | Train bits/code | Test bits/code |
+|---|---|---|---|
+| 20 epochs, best kept | 4 | 7.578 | 7.739 |
+
+![Prior samples, eight per CIFAR-10 class, decoded by the Stage 1 decoder](assets/prior_samples.png)
+
+Each row holds eight new images for one class, sampled from the prior and decoded by the Stage 1 decoder. The samples are blurry and rarely show a clear object, but the scene follows the class, with sky behind planes and birds and grass behind deer.
+
 ### Code fixes made while cleaning up
 
 - `_ema_w` in the quantizer was an `nn.Parameter`, so it sat inside the optimizer. It is now a buffer.
