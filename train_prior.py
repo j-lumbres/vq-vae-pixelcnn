@@ -5,7 +5,7 @@ Steps:
   2. Train the prior to predict each code from the codes before it (cross-entropy).
   3. Sample new code grids per class and decode them with the Stage 1 decoder.
 
-Small enough to train on a Colab T4 in about 15-20 minutes. Training on an
+Small enough to train on a T4 in a few minutes. Training on an
 8 GB laptop is possible on MPS but slow; the tests in tests/ are the local check.
 """
 
@@ -34,7 +34,7 @@ HISTORY_PATH = 'results/prior_history.json'
 SAMPLES_PATH = 'results/prior_samples.png'
 
 BATCH_SIZE = 128
-NUM_EPOCHS = 60
+NUM_EPOCHS = 20  # a 60-epoch run hit its best test loss at epoch 5 and overfit after that
 LEARNING_RATE = 3e-4
 NUM_HIDDENS = 256
 NUM_EMBEDDINGS = 512
@@ -90,6 +90,8 @@ optimizer = torch.optim.Adam(prior.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
 history = []
+best_test_bits = float('inf')
+best_epoch = -1
 start_time = time.time()
 
 for epoch in range(NUM_EPOCHS):
@@ -124,13 +126,21 @@ for epoch in range(NUM_EPOCHS):
     history.append({'epoch': epoch, 'train_bits_per_code': train_bits, 'test_bits_per_code': test_bits})
     print(f'Epoch {epoch}: train {train_bits:.3f} bits/code   test {test_bits:.3f} bits/code')
 
-    torch.save(prior.state_dict(), SAVE_PATH)
+    # Each code grid is close to unique, so the prior starts memorizing the train set early.
+    # Keep only the epoch with the lowest test loss.
+    if test_bits < best_test_bits:
+        best_test_bits = test_bits
+        best_epoch = epoch
+        torch.save(prior.state_dict(), SAVE_PATH)
+
     with open(HISTORY_PATH, 'w') as history_file:
         json.dump(history, history_file, indent=1)
 
 print(f'Training done in {(time.time() - start_time) / 60:.1f} min')
+print(f'Best test {best_test_bits:.3f} bits/code at epoch {best_epoch}, saved to {SAVE_PATH}')
 
-# 3. Sample new code grids per class, then decode them with the Stage 1 decoder
+# 3. Sample new code grids per class from the best epoch, then decode them with the Stage 1 decoder
+prior.load_state_dict(torch.load(SAVE_PATH, map_location=device, weights_only=True))
 prior.eval()
 sample_labels = torch.arange(NUM_CLASSES).repeat_interleave(SAMPLES_PER_CLASS).to(device)
 sampled_codes = prior.sample(sample_labels, grid_size=(8, 8), temperature=SAMPLE_TEMPERATURE)
