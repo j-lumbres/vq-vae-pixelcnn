@@ -1,3 +1,5 @@
+import sys
+
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -17,6 +19,11 @@ def make_cifar10_loaders(data_dir, batch_size, num_workers=2):
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
+
+    # Windows starts each worker by re-importing the main script, and the training scripts
+    # have no __main__ guard, so every worker would start training too. Load in-process there.
+    if sys.platform == 'win32':
+        num_workers = 0
 
     train_data = datasets.CIFAR10(root=data_dir, train=True, download=True, transform=transform)
     test_data = datasets.CIFAR10(root=data_dir, train=False, download=True, transform=transform)
