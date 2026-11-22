@@ -15,7 +15,7 @@ stopped at epoch 3 with codebook perplexity ~5 and a latent gap of ~0.17 bits/di
      with the same content, not a pixel-exact copy, so SSIM stays low even
      when the model works.
 
-Needs a GPU. Each epoch of 6 gated layers on 32x32x3 takes a few minutes on a T4.
+Needs a GPU. Each epoch of 6 gated layers on 32x32x3 takes about 9 minutes on a T4.
 An interrupted run continues from RESUME_PATH. Delete it to start over.
 """
 
